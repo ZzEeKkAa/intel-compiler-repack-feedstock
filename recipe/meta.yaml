@@ -333,8 +333,6 @@ outputs:
         - {{ pin_subpackage('intel-opencl-rt', exact=True) }}
         - {{ pin_subpackage('intel-sycl-rt', exact=True) }}
       run:
-        - _openmp_mutex * *_llvm   # [linux]
-        - llvm-openmp              # [not linux]
         - {{ pin_subpackage('intel-cmplr-lib-rt', exact=True) }}
         - {{ pin_subpackage('intel-cmplr-lib-ur', exact=True) }}
         - {{ pin_subpackage('intel-opencl-rt', exact=True) }}
@@ -397,8 +395,6 @@ outputs:
         - {{ pin_subpackage('intel-sycl-rt', exact=True) }}
         # TODO: this is CPU runtime, do we want to strongly link it?
         - {{ pin_subpackage('intel-opencl-rt', exact=True) }}
-        - ocl-icd  # [linux]
-        - khronos-opencl-icd-loader  # [win]
         - binutils_impl_{{ target_platform }} >={{ binutils_version }}        # [linux]
         - libgcc-devel_{{ target_platform }} >={{ c_compiler_version }}       # [linux]
         - libstdcxx-devel_{{ target_platform }} >={{ cxx_compiler_version }}  # [linux]
@@ -452,6 +448,12 @@ outputs:
         - {{ pin_subpackage('dpcpp_impl_' ~ target_platform, exact=True) }}
         - binutils_{{ target_platform }} >={{ binutils_version }}  # [linux]
         - {{ c_stdlib }}_{{ target_platform }}
+        # We don't need actual compiler, we are just using activation script
+        # from there. Ideally we need to create (d)activate-icpx(.sh|.bat) based
+        # on gcc, the same way clang does it:
+        # https://github.com/conda-forge/ctng-compiler-activation-feedstock/blob/9833f5976847c62d43f8058945ac9e5d440806c9/recipe/build.sh#L109-L126
+        - gcc_{{ target_platform }} >={{ c_compiler_version }} # [linux]
+        - gxx_{{ target_platform }} >={{ c_compiler_version }} # [linux]
     about:
       home: https://software.intel.com/content/www/us/en/develop/tools.html
       doc_url: https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/dpc-compiler.html
@@ -487,9 +489,9 @@ outputs:
     build:
       number: {{ oneccl_build_number|int + dst_build_number|int }}
       skip: True  # [not linux64]
-      missing_dso_whitelist:
-        - '**/libfabric.so.1'
-        - '**/libze_loader.so.1'
+      # missing_dso_whitelist:
+      #   - '**/libfabric.so.1'
+      #   - '**/libze_loader.so.1'
     requirements:
       build:
         - {{ compiler('c') }}
@@ -498,6 +500,7 @@ outputs:
       host:
         - {{ pin_subpackage('intel-cmplr-lib-rt', exact=True) }}
         - {{ pin_subpackage('intel-sycl-rt', exact=True) }}
+        - level-zero-devel
         # FIXME due to a conda-build bug, we need to tell conda-build that dpcpp-cpp-rt depends
         # on llvm openmp instead of gnu
         - _openmp_mutex * *_llvm   # [linux]
@@ -505,6 +508,12 @@ outputs:
       run:
         - {{ pin_subpackage('intel-sycl-rt', exact=True) }}
         - {{ pin_subpackage('intel-cmplr-lib-rt', exact=True) }}
+      run_constrained:
+        # Pinning it on linux for now, because on windows it should be
+        # distributed with driver and because of the specific of the system
+        # level zero loader may be searched only in the system directories.
+        # TODO: check if windows libraries may be loaded from conda environment.
+        - {{ pin_compatible("level-zero") }}     # [linux]
     about:
       home: https://software.intel.com/content/www/us/en/develop/tools.html
       doc_url: https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/oneccl.htm
